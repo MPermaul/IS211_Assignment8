@@ -1,5 +1,6 @@
 import argparse
 import random
+import time
 
 
 class Player:
@@ -11,7 +12,6 @@ class Player:
         self.roll = False
         self.score = 0
         self.potential = 0
-
 
     def check_win(self):
         """ Player method that checks if the player has won the game."""
@@ -27,6 +27,7 @@ class Player:
 class ComputerPlayer(Player):
     """A class object representing a computer player for the Pig game."""
 
+    # constructor that sets computer player's default values
     def __init__(self, name):
         Player.__init__(self)
         self.name = name + ' (Computer)'
@@ -48,6 +49,7 @@ class ComputerPlayer(Player):
 class HumanPlayer(Player):
     """A class object representing a human player for the Pig game."""
 
+    # constructor that sets human player's default values
     def __init__(self, name):
         Player.__init__(self)
         self.name = name + ' (Human)'
@@ -140,9 +142,6 @@ class Game:
             # if current player decides to roll the die
             if self.current_player.roll:
 
-                # call function to clear the screen
-                # clear()
-
                 # roll the die and display the details
                 self.die.roll()
                 print('\n\t** {} rolled a {} **'.format(self.current_player.name, self.die.rolled))
@@ -212,6 +211,175 @@ class Game:
                         self.current_player = self.players[self.counter]
 
 
+class TimedGameProxy(Game):
+    """A class object representing a proxy pattern that sets a time limit of 1 minute on the Pig game."""
+
+    # initial constructor setting the default start and end times
+    def __init__(self):
+        self.start_time = time.time()
+        self.end_time = self.start_time + 60
+
+    def check_time(self, player1, player2):
+        """A class method for checking if the time has expired and selects winner """
+
+        # if the current time is less than the end time
+        if time.time() <= self.end_time:
+            pass
+        else:
+            # if time expires and player1 has highest score
+            if player1.score > player2.score:
+                print('\n\tTime has expired!\n\t{} wins with a score of {}'.format(player1.name, player1.score))
+                exit()
+            # if time expires and player2 has highest score
+            elif player2.score > player1.score:
+                print('\n\tTime has expired!\n\t{} wins with a score of {}'.format(player2.name, player2.score))
+                exit()
+            # if time expires and players have equal scores
+            elif player1.score == player2.score:
+                print('\n\tTime has expired!\n\tHowever, a winner can\'t be determined.')
+                exit()
+
+    def time_left(self):
+        return round(self.end_time - time.time(), 2)
+
+
+class ProxyGame:
+    """ A class that represents a timed game of Pig. """
+
+    # initial constructor setting the default values for the game
+    def __init__(self, player1, player2):
+        self.player1 = player1
+        self.player2 = player2
+        self.players = [player1, player2]
+        self.die = Die()
+        self.max_score = 100
+        self.highest_score = 0
+
+        # create counter to track current player
+        self.counter = 0
+
+        # set current player
+        self.current_player = self.players[self.counter]
+
+        # create proxy object to keep track of time
+        self.proxy = TimedGameProxy()
+
+        # loop to keep game running until a player wins, while current player hasn't won
+        while not self.current_player.check_win():
+
+            # print statements that display game stats
+            print('\nCurrent Player: {}'.format(self.current_player.name))
+            print('*' * 25)
+            print('Current Stats:')
+            print('\tCurrent Score: {}\n\tPotential Score: {}\n\tHighest Score: {}'.format(
+                self.current_player.score, self.current_player.score + self.current_player.potential, self.highest_score))
+            print('*' * 25)
+            print('Scoreboard:')
+
+            # loop to print all current player scores
+            for player in self.players:
+                print('\t{}\'s Score: {}'.format(player.name, player.score))
+
+            # display time remaining after game stats
+            print('\nTime Remaining: {} seconds'.format(self.proxy.time_left()))
+
+            # call current player's method to hold or roll the die
+            self.current_player.hold_or_roll()
+
+            # check if game time has expired
+            self.proxy.check_time(self.player1, self.player2)
+
+            # if current player decides to roll the die
+            if self.current_player.roll:
+
+                # roll the die and display the details
+                self.die.roll()
+                print('\n\t** {} rolled a {} **'.format(self.current_player.name, self.die.rolled))
+
+                # check if game time has expired
+                self.proxy.check_time(self.player1, self.player2)
+
+                # check to see if a 1 was rolled, display a message if yes, then set the current player to the next one
+                if self.die.rolled == 1:
+                    self.current_player.potential = 0
+                    self.counter += 1
+
+                    # check to see if counter value is less than the number of players
+                    if self.counter < len(self.players):
+
+                        # check if game time has expired
+                        self.proxy.check_time(self.player1, self.player2)
+
+                        # set current player to the next player's index and print message
+                        self.current_player = self.players[self.counter]
+                        print('\tRolling a "1" ends your turn. It\'s now {}\'s turn'.format(self.current_player.name))
+
+                    # if counter is greater than number of player, set counter and player back to first player in list
+                    else:
+                        self.counter = 0
+                        self.current_player = self.players[self.counter]
+                        print('\tRolling a "1" ends your turn. It\'s now {}\'s turn'.format(self.current_player.name))
+
+                        # check if game time has expired
+                        self.proxy.check_time(self.player1, self.player2)
+
+                # for all other die values, add the rolled value to the running score
+                else:
+                    self.current_player.potential += self.die.rolled
+                    print('\tHolding will add {} to your score.'.format(self.current_player.potential))
+
+                    # check if game time has expired
+                    self.proxy.check_time(self.player1, self.player2)
+
+            # if current player decides to hold, update player and highest score, and reset running score
+            else:
+                self.current_player.score += self.current_player.potential
+                self.current_player.potential = 0
+
+                # check if game time has expired
+                self.proxy.check_time(self.player1, self.player2)
+
+                # check if player has highest score
+                if self.current_player.score > self.highest_score:
+                    self.highest_score = self.current_player.score
+
+                # check to see if player wins and print message if True, then prompt to play again
+                if self.current_player.check_win():
+                    print('\n\tGAME OVER, {} WINS with {} points!\n'.format(
+                        self.current_player.name, self.current_player.score))
+
+                    print('Would you like to play again with same number of players?')
+                    answer = input('Enter "Y", or else the game will exit: ')
+
+                    # if yes, clear screen, reset scores, set counter back to 0, and set current player to player1
+                    if answer.lower() == 'y':
+                        clear()
+                        for player in self.players:
+                            player.reset_score()
+                        self.highest_score = 0
+                        self.counter = 0
+                        self.current_player = self.players[self.counter]
+
+                        # reset proxy object time
+                        self.proxy.start_time = time.time()
+                        self.proxy.end_time = time.time() + 60
+
+                # update player values for the next players turn
+                else:
+                    self.counter += 1
+
+                    # check to see if counter value is less than the number of players
+                    if self.counter < len(self.players):
+
+                        # set current player to the next player's index
+                        self.current_player = self.players[self.counter]
+
+                    # if counter value is not less than number of player, set counter and player back to first player
+                    else:
+                        self.counter = 0
+                        self.current_player = self.players[self.counter]
+
+
 def clear():
     """ Function that adds 100 new lines to clear the screen. """
     print('\n' * 50)
@@ -225,16 +393,26 @@ def main():
     parser.add_argument('--player1', default='h', type=str, help='Player type --> "h" for Human, "c" for computer')
     parser.add_argument('--player2', default='c', type=str, help='Player type --> "h" for Human, "c" for computer')
     parser.add_argument('--timed', default='n', type=str, help='Timed Game --> "y" for Yes and "n" for No')
-
     args = parser.parse_args()
 
-    # create factory object and create players using the parsed arguments
-    factory = PlayerFactory()
-    player1 = factory.create_player(args.player1, 'Player 1')
-    player2 = factory.create_player(args.player2, 'Player 2')
+    # only valid arguments
+    arg_vals = ('c', 'h', 'n', 'y')
 
-    # call game and pass in the 2 players
-    Game(player1, player2)
+    # checks to make sure that only valid arguments are passed in
+    if (args.player1.lower() not in arg_vals) or (args.player2.lower() not in arg_vals) or (args.timed.lower() not in arg_vals):
+        print('\nPlease check your arguments! You\'ve entered in something invalid.')
+    else:
+        # create factory object and create players using the parsed arguments
+        factory = PlayerFactory()
+        player1 = factory.create_player(args.player1.lower(), 'Player 1')
+        player2 = factory.create_player(args.player2.lower(), 'Player 2')
+
+        # check timed argument and call corresponding game
+        if args.timed.lower() == "y":
+            ProxyGame(player1, player2)
+        else:
+            # call non timed game and pass in the 2 players created from PlayerFactory
+            Game(player1, player2)
 
 
 if __name__ == '__main__':
